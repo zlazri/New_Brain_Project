@@ -8,6 +8,8 @@ import skimage
 from skimage import img_as_uint
 import matplotlib
 from matplotlib import pyplot as plt
+import denoise
+from denoise import filter_array
 
 if __name__ == "__main__":
 
@@ -19,18 +21,5 @@ if __name__ == "__main__":
     tiff = TIFF.open(args.inpath, mode='r')
     tiff2 = TIFF.open(args.outpath, mode='w')
     for image in tiff.iter_images():
-        imgsqrt = np.sqrt(image)
-        coeffs = pywt.dwt2(imgsqrt, 'db4')
-        cA, (cH, cV, cD) = coeffs
-        conc1 = np.concatenate((cH,cV))
-        conc2 = np.concatenate((conc1,cD))
-        threshold = (np.sqrt(2*np.log(512))*np.median(abs(conc2)))/0.645
-        cD = cD > threshold
-        cH = cH > threshold
-        cV = cV > threshold
-        new_coeffs = (cA, (cH, cV, cD))
-        filtered_signal = pywt.idwt2(new_coeffs, 'db4', 'symmetric')
-        img = np.square(filtered_signal)
-        img = img/float(np.max(img))
-        img = img_as_uint(img)
-        tiff2.write_image(img)
+        filt_img = filter_array(image)
+        tiff2.write_image(filt_img)
