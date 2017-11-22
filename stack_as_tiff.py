@@ -3,6 +3,8 @@
 import argparse
 import numpy as np
 from libtiff import TIFF
+import matplotlib
+from matplotlib import pyplot as plt
 
 if __name__ == "__main__":
 
@@ -14,8 +16,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     tiff = TIFF.open(args.outpath, mode= 'w')
+    imgs = np.memmap(args.inpath, dtype = 'uint16', mode = 'r', shape = (15000, 4, 512, 512), order ='C')
+    
     for i in range(args.startframe, args.stopframe):
-        img_chans = np.memmap(args.inpath, dtype = 'uint16', mode = 'r', shape = (i, 4, 512, 512), order ='C')
-        img = img_chans[0,1,:,:]
-        tiff.write_image(img)
+        tiff.write_image(imgs[i, 1, :, :])
     
