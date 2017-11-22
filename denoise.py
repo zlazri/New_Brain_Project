@@ -5,6 +5,8 @@ import argparse
 import pywt
 from skimage import img_as_uint
 
+np.set_printoptions(threshold=np.nan)
+
 def filter_array(image):
     
     imgsqrt = np.sqrt(image)
@@ -12,12 +14,12 @@ def filter_array(image):
     cA, (cH, cV, cD) = coeffs
     conc1 = np.concatenate((cH,cV))
     conc2 = np.concatenate((conc1,cD))
-    threshold = (np.sqrt(2*np.log(512))*np.median(abs(conc2)))/0.645
-    cD = cD > threshold
-    cH = cH > threshold
-    cV = cV > threshold
+    threshold = (np.sqrt(2*np.log(imgsqrt.size))*np.median(abs(conc2)))/0.6745
+    cD[cD < threshold] = 0
+    cH[cH < threshold] = 0
+    cV[cV < threshold] = 0
     new_coeffs = (cA, (cH, cV, cD))
-    filtered_signal = pywt.idwt2(new_coeffs, 'db4', 'symmetric')
+    filtered_signal = pywt.idwt2(new_coeffs, 'db4')
     img = np.square(filtered_signal)
     img = img/float(np.max(img))
     img = img_as_uint(img)
