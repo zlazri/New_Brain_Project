@@ -9,7 +9,7 @@ from skimage import img_as_uint
 import matplotlib
 from matplotlib import pyplot as plt
 import denoise
-from denoise import filter_array
+from denoise import PoissonDWT2
 
 if __name__ == "__main__":
 
@@ -21,5 +21,4 @@ if __name__ == "__main__":
     tiff = TIFF.open(args.inpath, mode='r')
     tiff2 = TIFF.open(args.outpath, mode='w')
     for image in tiff.iter_images():
-        filt_img = filter_array(image)
-        tiff2.write_image(filt_img)
+        tiff2.write_image(PoissonDWT2(image))

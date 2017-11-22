@@ -20,4 +20,3 @@ if __name__ == "__main__":
     
     for i in range(args.startframe, args.stopframe):
         tiff.write_image(imgs[i, 1, :, :])
-    

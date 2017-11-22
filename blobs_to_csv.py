@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
 
 #----------------Sample blob image------------------------
-            
+#            
 #            fig, axes = plt.subplots(1,1)
 #
 #            size1 = np.shape(blobdata)[0]
@@ -58,4 +58,3 @@ if __name__ == "__main__":
 #                axes.add_patch(c)
 #
 #            plt.show()
-#            assert(1==0)

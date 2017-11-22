@@ -7,7 +7,7 @@ from skimage import img_as_uint
 
 np.set_printoptions(threshold=np.nan)
 
-def filter_array(image):
+def PoissonDWT2(image):
     
     imgsqrt = np.sqrt(image)
     coeffs = pywt.dwt2(imgsqrt, 'db4')
