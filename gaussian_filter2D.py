@@ -12,7 +12,7 @@ def gauss_filt2D(n, sig):
 
     X, Y = np.meshgrid(nx, ny)
 
-    kernel = np.exp(-(np.square(X) + np.square(Y)) / (2*sig*sig))
+    kernel = np.exp(-(np.square(X) + np.square(Y)) / (2*sig*sig))/(2*np.pi*sig*sig)
 
     kernel = kernel/np.sum(kernel)
 
