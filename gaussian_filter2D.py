@@ -1,4 +1,5 @@
 import numpy as np
+from skimage import img_as_uint
 
 def gauss_kern1D(n, sig):
 
@@ -37,26 +38,26 @@ def gauss_filt2D(img, Gfilt):
 
     Note: m1 and m2, below, should be the same since images are square-- at least for our purposes.
 
+    Note: uint16 is returned
+
     '''
 
     m1, m2 = img.shape
     n1, n2 = Gfilt.shape    
     r = int(n1/2)
-#    print(r)
     outimg = np.zeros((m1,m2), dtype=float)
     I = np.linspace(-r,r,n1)
     I = I.astype(int)
-#    print(I)
     i0 = r+1
     center = (i0, i0)
     for i in range(r, m1-r-1):
         for j in range(r, m2-r-1):
             outimg[i,j] = np.sum(np.multiply(Gfilt,img[i-I, j-I]))
-#            print(outimg[i,j])
-#            assert(j<5)
+    for i in range(r) + range(m1-r-1, m1):
+        for j in range(r) + range(m2-r-1, m2):
+            outimg[i,j] = img[i,j]
 
-#    for i in range(r) + range(m1-r-1, m1):
-#        for j in range(r) + range(m2-r-1, m2):
-#            outimg[i,j] = img[i,j]
+    outimg = outimg/float(np.max(outimg))
+    outimg = img_as_uint(outimg)
 
     return outimg
