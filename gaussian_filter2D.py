@@ -10,14 +10,12 @@ def gauss_kern2D(n, sig):
     '''
 
     nx = ny = np.linspace(-np.floor(n/2), np.floor(n/2), n)
-
     X, Y = np.meshgrid(nx, ny)
-
     kernel = np.exp(-(np.square(X) + np.square(Y)) / (2*sig*sig))/(2*np.pi*sig*sig)
-
     kernel = kernel/np.sum(kernel)
-
+    
     return kernel
+
 
 def gauss_filt2D(img, Gfilt):
 
@@ -38,11 +36,11 @@ def gauss_filt2D(img, Gfilt):
     outimg = np.zeros((m1,m2), dtype=float)
     I = np.linspace(-r,r,n1)
     I = I.astype(int)
-    i0 = r+1
-    center = (i0, i0)
+
     for i in range(r, m1-r-1):
         for j in range(r, m2-r-1):
             outimg[i,j] = np.sum(np.multiply(Gfilt,img[i-I, j-I]))
+            
     for i in range(r) + range(m1-r-1, m1):
         for j in range(r) + range(m2-r-1, m2):
             outimg[i,j] = img[i,j]
