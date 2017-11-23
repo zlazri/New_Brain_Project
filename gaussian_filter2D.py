@@ -1,16 +1,6 @@
 import numpy as np
 from skimage import img_as_uint
 
-def gauss_kern1D(n, sig):
-
-    ''' Creates a 1D gaussian kernel.
-      
-        n = size of gaussian kernel
-        sig = sigma
-    '''
-
-    
-
 def gauss_kern2D(n, sig):
 
     ''' Creates a 2D gaussian kernel.
