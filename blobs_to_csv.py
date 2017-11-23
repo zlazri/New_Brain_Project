@@ -8,6 +8,7 @@ from libtiff import TIFF
 import skimage
 from skimage.feature import blob_log
 from skimage.feature import blob_dog
+from skimage.feature import blob_doh
 from skimage import exposure
 import csv
 from numpy import sqrt
