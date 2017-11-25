@@ -6,6 +6,11 @@ from gaussian_filter2D import gauss_kern2D
 from gaussian_filter2D import gauss_filt2D
 import argparse
 from libtiff import TIFF
+from scipy.ndimage import filters
+from scipy.ndimage.filters import gaussian_filter
+import matplotlib
+from matplotlib import pyplot as plt
+
 
 if __name__ == "__main__":
 
@@ -18,8 +23,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     tiff = TIFF.open(args.outpath, mode='w')
     imgs = np.memmap(args.inpath, dtype = 'uint16', mode = 'r', shape = (15000, 4, 512, 512), order ='C')
-    Gkernel = gauss_kern2D(3, 1)
-   
+    
     for i in range(args.startframe, args.stopframe):
-        tiff.write_image(gauss_filt2D(imgs[i,1,:,:],Gkernel))
+        tiff.write_image(gaussian_filter(imgs[i,1,:,:], 1, truncate=1))
         print('Filtered and stored image: ', i)
+        
