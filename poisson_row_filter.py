@@ -30,7 +30,7 @@ def convolution_mat(filter, matdim):
 
 def adjustsz(matrix, declevel):
     for i in range(declevel):
-        matrix = matrix[::2, ::2]
+        matrix = matrix[0:len(matrix.diagonal())/2, 0:len(matrix.diagonal())/2]
     return matrix
 
 def D4waverec(cA, cD, lo_pass, hi_pass):
@@ -40,8 +40,6 @@ def D4waverec(cA, cD, lo_pass, hi_pass):
     cDup[0:2*len(cD):2] = cD
     Lo_R = lo_pass*cAup
     Hi_R = hi_pass*cDup
-    print(Lo_R)
-    print(Hi_R)
     signal = Lo_R + Hi_R
     return signal  
 
@@ -63,7 +61,7 @@ if __name__ == "__main__":
     D4scal, D4wave, rD4scal, rD4wave = D4filter_bank()
     (D4scal_mat, D4scal_trans) = convolution_mat(D4scal, sz)
     (D4wave_mat, D4wave_trans) = convolution_mat(D4wave, sz)
-   
+
     grow = []
     pad = 0
     hdown2 = img_diag
@@ -72,24 +70,24 @@ if __name__ == "__main__":
         gmapping = D4wave_trans*hdown2*D4wave_mat
         hdown2 = hmapping[::2, ::2]
         gdown2 = gmapping[::2, ::2]
-        D4scal_mat = D4scal_mat[::2, ::2]
-        D4scal_trans = D4scal_trans[::2, ::2]
-        D4wave_mat = D4wave_mat[::2,::2]
-        D4wave_trans = D4wave_trans[::2, ::2]
         hscale = hdown2.diagonal()
         gscale = gdown2.diagonal()
+        D4scal_mat = D4scal_mat[0:len(hscale), 0:len(hscale)]
+        D4scal_trans = D4scal_trans[0:len(hscale), 0:len(hscale)]
+        D4wave_mat = D4wave_mat[0:len(hscale), 0:len(hscale)]
+        D4wave_trans = D4wave_trans[0:len(hscale), 0:len(hscale)]
         grow.append(gscale)
         if len(hscale) == 1:
             grow.append(hscale)
         pad = pad + len(hscale)
     grow = grow[::-1]
 
-
     # Row Wavelet Transform
 
     D4scal, D4wave, rD4scal, rD4wave = D4filter_bank()
     (D4scal_mat, D4scal_trans) = convolution_mat(D4scal, sz)
     (D4wave_mat, D4wave_trans) = convolution_mat(D4wave, sz)
+
     coeffs = []
     pad = 0
     sdown2 = img_row
@@ -98,19 +96,19 @@ if __name__ == "__main__":
         mapping2 = D4wave_trans*sdown2
         sdown2 = mapping1[::2]
         wdown2 = mapping2[::2]
-        D4scal_trans = D4scal_trans[::2, ::2]
-        D4wave_trans = D4wave_trans[::2, ::2]
+        D4scal_trans = D4scal_trans[0:len(sdown2), 0:len(sdown2)]
+        D4wave_trans = D4wave_trans[0:len(sdown2), 0:len(sdown2)]
         coeffs.append(wdown2)
         if sdown2.size == 1:
             coeffs.append(sdown2)
         pad = pad + len(sdown2)
     coeffs = coeffs[::-1]
-    
+    plt.show()
     # Filter Coefficients
 
-    for i in range(len(coeffs)):
+    for i in range(1,len(coeffs)):
         coef = coeffs[i]
-        filt = grow[i]
+        filt = grow[i]*0
         h = np.divide(np.multiply(coef,coef)-filt, np.multiply(coef, coef))
         h[h < 0] = 0
         h[h == np.nan] = 0
@@ -131,7 +129,7 @@ if __name__ == "__main__":
         filtered_signal = D4waverec(filtered_signal, cD, Recscal, Recwave)
 
     # Graph Signals
-    
+
     pts = np.linspace(0,511,512)
     f, (ax1,ax2) = plt.subplots(2, sharey=True)
     ax1.plot(pts,img_row)
