@@ -11,6 +11,39 @@ import math
 from math import pow
 import pywt
 
+def D4filter_bank():
+    dec_lo = np.array([[-0.010597401784997278, 0.032883011666982945, 0.030841381835986965, -0.18703481171888114, -0.02798376941698385, 0.6308807679295904, 0.7148465705525415, 0.23037781330885523]])
+    dec_lo = dec_lo.T
+    dec_hi = np.copy(dec_lo[::-1])
+    for i in range(np.size(dec_hi)):
+        dec_hi[i] = dec_hi[i]*pow(-1,i+1)
+    rec_lo = np.copy(dec_lo[::-1])
+    rec_hi = np.copy(dec_hi[::-1])
+
+    return [dec_lo, dec_hi, rec_lo, rec_hi]
+
+def convolution_mat(filter, matdim):
+    repeat_rows = filter*np.ones((1,matdim))
+    filter_mat = sparse.spdiags(repeat_rows, np.arange(D4scal.size), matdim, matdim).tocsr()
+    filter_trans = filter_mat.T
+    return (filter_mat, filter_trans)
+
+def adjustsz(matrix, declevel):
+    for i in range(declevel):
+        matrix = matrix[::2, ::2]
+    return matrix
+
+def D4waverec(cA, cD, lo_pass, hi_pass):
+    cAup = np.zeros((2*len(cA)))
+    cDup = np.zeros((2*len(cD)))
+    cAup[0:2*len(cA):2] = cA
+    cDup[0:2*len(cD):2] = cD
+    Lo_R = lo_pass*cAup
+    Hi_R = hi_pass*cDup
+    print(Lo_R)
+    print(Hi_R)
+    signal = Lo_R + Hi_R
+    return signal  
 
 if __name__ == "__main__":
 
@@ -25,62 +58,79 @@ if __name__ == "__main__":
 
     img_diag = sparse.spdiags(img_row, 0, sz, sz).tocsr()
 
-#   pointwise square D4 scaling coeffs
+#   Pointwise square D4 scaling coeffs
 
-    D4scal = np.array([[1+sqrt(3), 3+sqrt(3), 3-sqrt(3), 1-sqrt(3)]])/4
-    D4scal = D4scal.T
-    repeat_rows = D4scal*np.ones((1,sz))
+    D4scal, D4wave, rD4scal, rD4wave = D4filter_bank()
+    (D4scal_mat, D4scal_trans) = convolution_mat(D4scal, sz)
+    (D4wave_mat, D4wave_trans) = convolution_mat(D4wave, sz)
+   
+    grow = []
+    pad = 0
+    hdown2 = img_diag
+    for i in range(9):
+        hmapping = D4scal_trans*hdown2*D4scal_mat
+        gmapping = D4wave_trans*hdown2*D4wave_mat
+        hdown2 = hmapping[::2, ::2]
+        gdown2 = gmapping[::2, ::2]
+        D4scal_mat = D4scal_mat[::2, ::2]
+        D4scal_trans = D4scal_trans[::2, ::2]
+        D4wave_mat = D4wave_mat[::2,::2]
+        D4wave_trans = D4wave_trans[::2, ::2]
+        hscale = hdown2.diagonal()
+        gscale = gdown2.diagonal()
+        grow.append(gscale)
+        if len(hscale) == 1:
+            grow.append(hscale)
+        pad = pad + len(hscale)
+    grow = grow[::-1]
 
-    D4scal_mat = sparse.spdiags(repeat_rows, np.array([0, 1, 2, 3]), sz, sz).tocsr()
-    D4scal_trans = D4scal_mat.T
 
-    hmapping = D4scal_trans*img_diag*D4scal_mat
-    hdown2 = hmapping[::2, ::2]
-    hrow = hdown2.diagonal()
+    # Row Wavelet Transform
 
-#   Pointwise Square D4 detail coeffs
-
-    D4wave = D4scal[::-1]
-    for i in range(np.size(D4scal)):
-        D4wave[i] = D4wave[i]*pow(-1,i)
-
-    D4wave = D4wave
-    repeat_rows = D4wave*np.ones((1,sz))
-
-    D4wave_mat = sparse.spdiags(repeat_rows, np.array([0, 1, 2, 3]), sz, sz).tocsr()
-    D4wave_trans = D4wave_mat.T
-
-    gmapping = D4wave_trans*img_diag*D4wave_mat
-    gdown2 = gmapping[::2, ::2]
-    grow = gdown2.diagonal()
-
-#   Row Wavelet Transform
-
-    coeffs = pywt.dwt(img_row.T, 'db1')
+    D4scal, D4wave, rD4scal, rD4wave = D4filter_bank()
+    (D4scal_mat, D4scal_trans) = convolution_mat(D4scal, sz)
+    (D4wave_mat, D4wave_trans) = convolution_mat(D4wave, sz)
+    coeffs = []
+    pad = 0
+    sdown2 = img_row
+    for i in range(9):
+        mapping1 = D4scal_trans*sdown2
+        mapping2 = D4wave_trans*sdown2
+        sdown2 = mapping1[::2]
+        wdown2 = mapping2[::2]
+        D4scal_trans = D4scal_trans[::2, ::2]
+        D4wave_trans = D4wave_trans[::2, ::2]
+        coeffs.append(wdown2)
+        if sdown2.size == 1:
+            coeffs.append(sdown2)
+        pad = pad + len(sdown2)
+    coeffs = coeffs[::-1]
     
-    (cS, cD) = coeffs
+    # Filter Coefficients
 
-#    print(cS.size)
+    for i in range(len(coeffs)):
+        coef = coeffs[i]
+        filt = grow[i]
+        h = np.divide(np.multiply(coef,coef)-filt, np.multiply(coef, coef))
+        h[h < 0] = 0
+        h[h == np.nan] = 0
+        coef = np.multiply(coef,h)
+        coeffs[i] = coef
 
-    h1 = np.divide(np.multiply(cS,cS)-hrow, np.multiply(cS, cS))
-    h1[h1 < 0] = 0
-    h1[h1 == np.nan] = 0
+        
+    # Perform Reconstruction
 
-#    print(h1)
+    (rD4scal_mat, rD4scal_trans) = convolution_mat(rD4scal, sz)
+    (rD4wave_mat, rD4wave_trans) = convolution_mat(rD4wave, sz)
 
-    h2 = np.divide(np.multiply(cD,cD)-grow, np.multiply(cD, cD))
-    h2[h2 < 0] = 0
-    h2[h2 == np.nan] = 0
-    
-    cS = np.multiply(cS,h1)
+    filtered_signal = coeffs[0]
+    for i in range(9):
+        cD = coeffs[i+1]
+        Recwave = adjustsz(rD4wave_trans, 8-i)
+        Recscal = adjustsz(rD4scal_trans, 8-i)
+        filtered_signal = D4waverec(filtered_signal, cD, Recscal, Recwave)
 
-    cD = np.multiply(cD,h2)
-
-    filtered_signal = pywt.idwt(cS, cD, 'db1')
-
-    print(filtered_signal)
-    print('----------')
-    print(img_row)
+    # Graph Signals
     
     pts = np.linspace(0,511,512)
     f, (ax1,ax2) = plt.subplots(2, sharey=True)
