@@ -35,17 +35,16 @@ def rank_filter2D(img, sz, rank):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description = 'Performs rank filtering to image')
-    parser.add_argument('inpath', type=str, help = 'Inpath to tiff stack')
+    parser.add_argument('inpath', type=str, help = 'Inpath to raw stack')
     parser.add_argument('outpath', type=str, help = 'Outpath for filtered images')
-    parser.add_argument('--sz', type=int, default=5, help = 'Size of the rank filter neighborhood is 2*sz+1 by 2*sz+1')
-    parser.add_argument('--rank', type=int, default=5, help = 'nth largest element of the neighborhood')
+    parser.add_argument('--sz', type=int, default=5, help = 'Size of the rank filter neighborhood is NxN')
+    parser.add_argument('--rank', type=int, default=5, help = 'Nth largest element of the neighborhood')
     parser.add_argument('--frames', type=int, default=100,  help = 'Number of frames to which the filter is applied')
     args = parser.parse_args()
 
-    allimgs = np.memmap(args.inpath, dtype = 'uint16', mode = 'r', shape = (15000, 4, 512, 512), order ='C')
-    imgs = allimgs[:,1,:,:]
+    imgs = np.memmap(args.inpath, dtype = 'float64', mode = 'r', shape = (args.frames, 512, 512), order ='C')
+
     tiffout = TIFF.open(args.outpath, mode='w')
     for i in range(args.frames):
-#        tiffout.write_image(rank_filter2D(imgs[i,:,:], args.sz, args.rank))
-        plt.imshow(rank_filter2D(imgs[i,:,:], args.sz, args.rank))
-        plt.show()
+        tiffout.write_image(rank_filter2D(imgs[i,:,:], args.sz, args.rank))
+        print("filtered image: " + str(i))
