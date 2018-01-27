@@ -2,9 +2,9 @@ import numpy as np
 from numpy.linalg import inv
 from numpy.linalg import solve
 
-def LinPredictor(path, nseq, start, N, K, alp, skip):
+def LinPredictor(path, iseq, start, N, K, alp, skip):
     ''' Path: Path to the sequence data
-        nseq: The index of the blob sequence
+        iseq: The index of the blob sequence
         start: The first frame of the sequence at which we will compute a blob location prediction
         N: Specifies the number of frames over which we wish to preform blob location estimations
         K: The number of previous frames taken into account to perform blob location estimate
@@ -22,14 +22,14 @@ def LinPredictor(path, nseq, start, N, K, alp, skip):
         # Compute sample mean vector
         mu = np.zeros((K + alp, 1))
         for j in range(start + K - 1, i + 1):
-            u = np.array([M[nseq, j-K+1:j+1+alp]]).T
+            u = np.array([M[iseq, j-K+1:j+1+alp]]).T
             mu += u
         mu /= n
 
         # Compute sample covariance/autocorrelation matrix
         C = np.zeros((K + alp, K + alp))
         for j in range(start + K - 1, i + 1):
-            u = np.array([M[nseq, j-K+1:j+1+alp]]).T
+            u = np.array([M[iseq, j-K+1:j+1+alp]]).T
             C += (u - mu)*(u - mu).T
             # C += u*u.T
         C /= n
@@ -47,8 +47,8 @@ def LinPredictor(path, nseq, start, N, K, alp, skip):
             # print(w)
 
             # Filter
-            predicted = np.around(np.dot(np.flipud(w), M[nseq, i-K+2:i+1]))
-            actual = M[nseq, i+alp]
+            predicted = np.around(np.dot(np.flipud(w), M[iseq, i-K+2:i+1]))
+            actual = M[iseq, i+alp]
             print((predicted, actual))
 
             # Compute number of correct predictions
