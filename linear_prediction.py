@@ -11,12 +11,15 @@ def LinPredictor(path, iseq, start, N, K, alp, skip):
         alp: Specifies how many frames into the future we wish to predict
         skip: Number of starting frames to skip over
     '''
-    
+
     M = np.load(path)
     n = 1
     correct = 0
     incorrect = 0
     total = N-skip
+#    u = M[iseq, start:start+K+alp]
+#    mu = np.zeros((K + alp, 1))
+#    mu += u
     
     for i in range(start + K - 1, start + N):
         # Compute sample mean vector
@@ -39,7 +42,7 @@ def LinPredictor(path, iseq, start, N, K, alp, skip):
         # print(u)
         # print(C)
 
-        if i >= skip:
+        if i >= skip + start:
             # Set up system
             R = C[0:K-1,0:K-1]
             r_x = C[1+alp:K+alp, 0]
@@ -61,4 +64,6 @@ def LinPredictor(path, iseq, start, N, K, alp, skip):
  
  
         # Percentage of correct predictions
+    print("Correct: ", str(correct))
+    print("Total: ", str(total))
     print("Percentage of correct predictions: "+ str(correct/total))
