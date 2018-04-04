@@ -267,23 +267,20 @@ def MV_LP(x):
     # Initialization
     Ef_old = R[0:blk, 0:blk]
     Eb_old = R[0:blk, 0:blk]
-    A_old = np.identity(blk)
-    B_old = np.identity(blk)
     I = np.identity(blk)
     Z = np.zeros((blk,blk))
+    Kb = R[blk:blk*2, 0:blk]
+    A_old = Z + np.matmul(np.matmul(I, inv(Eb_old)), Kb.T)
+    B_old = Z + np.matmul(np.matmul(I, inv(Ef_old)), Kb)
+    Ef_old = Ef_old - np.matmul(np.matmul(Kb, inv(Eb_old)), Kb.T)
+    Eb_old = Eb_old - np.matmul(np.matmul(Kb.T, inv(Ef_old)), Kb)
     
-    for i in range(L):
-
+    for i in range(2, L+1):
+        
         # Recursion
         R_l = R[blk*i:blk*(i+1), 0:blk]
-        if i > 0:
-            Rf_l = R[blk*(i-1):blk*i, 0:blk]
-        
-        if i == 0:
-            Kb = R_l
-        else:
-            Kb = R_l - np.matmul(Rf_l.T, B_old)
-        print(Kb)
+        Rf_l = R[blk:blk*i, 0:blk]
+        Kb = R_l - np.matmul(Rf_l.T, B_old)
             
         A = np.block([[A_old], [Z]]) - np.matmul(np.block([[B_old], [-I]]), np.matmul(inv(Eb_old), Kb.T))
         B = np.block([[Z], [B_old]]) - np.matmul(np.block([[-I], [A_old]]), np.matmul(inv(Ef_old), Kb))
@@ -295,12 +292,15 @@ def MV_LP(x):
         B_old = B
         Eb_old = Eb
         Ef_old = Ef
-
-    xvec = np.reshape(x[:,::-1].T, (mdim*ndim,1))
-    pred = np.around(np.matmul(A.T, xvec))
+        
+    xvec = np.reshape(x[:,::-1].T, (mdim*(ndim),1))
+    pred = np.around(np.matmul(A.T, xvec[2:]))
 
     return pred
-    
+
+# TODO: Check the initialization updates that I made above!!!
+# I think I'm almost there
+
 
 def MV_accuracy(data, start, N, filtsz = None):
 
