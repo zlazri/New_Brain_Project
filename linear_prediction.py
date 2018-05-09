@@ -6,8 +6,9 @@ from autocorrelation import AutoCorr
 from autocorrelation import CovMATLAB
 from autocorrelation import covar
 from autocorrelation import convm
-#from autocorrelation import BlkCovMat
 from matplotlib import pylab as plt
+from autocorrelation import covar2
+from blkT import blkT
 
 def LinPredictor(path, iseq, start, N, K, alp, skip, return_vals=False):
     ''' Path: Path to the sequence data
@@ -37,10 +38,8 @@ def LinPredictor(path, iseq, start, N, K, alp, skip, return_vals=False):
         # Autocorrelation Matrix
         u = np.array(M[iseq, start:i+alp])
         C = covar(u, K+alp)
-        mu = [sum(u)/len(u)]*(K+alp)
-        mu = np.asarray(mu)
-        mu = np.reshape(mu, (-1,1))
-        Rextra = C + mu*mu.T
+        mu = np.ones((K+alp, 1))*(sum(u)/len(u))
+        Rextra = C + (mu*mu.T)#/(len(u)-1)
         sz = len(Rextra[:,0])
         R = Rextra[0:sz-alp,0:sz-alp]
         
@@ -73,10 +72,6 @@ def LinPredictor(path, iseq, start, N, K, alp, skip, return_vals=False):
         n += 1
  
     # Percentage of correct predictions
-#    print("Correct: " + str(correct))
-#    print("Total: " + str(total))
-#    print("Percentage of correct predictions: "+ str(correct/total))
-
     p = correct/total
 
     if return_vals == True:
@@ -87,8 +82,8 @@ def LinPredictor(path, iseq, start, N, K, alp, skip, return_vals=False):
 def dist_categorization(data_path1, data_path2, alp, K):
     '''Compares the correct predictions and incorrect predictions by how far of the predicted value is from the actual'''
 
-    (p1, predict1, actual1) = LinPredictor(data_path1, 212, 5673, 1250, K, alp, 100, True)
-    (p2, predict2, actual2) = LinPredictor(data_path2, 212, 5673, 1250, K, alp, 100, True)
+    (p1, predict1, actual1) = LinPredictor(data_path1, 212, 5673, 200, K, alp, 100, True)
+    (p2, predict2, actual2) = LinPredictor(data_path2, 212, 5673, 200, K, alp, 100, True)
     distance = abs(actual1-predict1) + abs(actual2-predict2)
     
     dist0 = 0
@@ -146,27 +141,7 @@ def hist_dist(data_path1, data_path2, alp, K):
     fig.text(0.5, 0.03, 'Number of Previous Frames Taken into Account', ha='center', fontsize=12)
     fig.text(0.05, 0.5, 'Percent of Total Predictions', va='center', rotation='vertical', fontsize=12)
     plt.show()
-
-
-
     
-def LPboxplot(data, K, alp, threshold):
-    length = len(data[:,0])
-    plt_dta = np.array([])
-    for i in range(length-1):
-        (maxlen, idxs) = contsegs(data[i, :])
-        if maxlen >= threshold:
-            plt_dta = np.append(plt_dta, LinPredictor("M_positions_new.npy", i, idxs[0], maxlen, K, alp, 20))
-
-    # Create Boxplot
-
-    plt.boxplot(plt_dta,vert=False)
-    plt.title("Percentage of Correctly Predicted X Coordinates for All Sequences")
-    plt.xlabel("Percent Correctly Predicted")    
-    plt.show()
-    
-
-        
     
 def LP(K,alp):
     # Longest seq: seq = 212, length = 1305, start_idx = 5673, end_idx = 6978
@@ -256,53 +231,28 @@ def MV_LP(x):
 
         Rf = [R(1) R(2) ... R(L)].T
 
+        Note: Block element transpose only supported for channels of size 2. Need to create a new function for larger channel arrays.
+
     '''
     (mdim, ndim) = x.shape
-    (C, R) = BlkCovMat(x)
+    (C, R) = CorrCovMats(x)
     blk = mdim
-    nR = len(R[:,0])
-    Rf = R[blk:nR, 0:blk]
+    nR = len(R[0,:])
+    Rf = R[0:blk, blk:nR]
+    RL = R[0:nR-blk,0:nR-blk]
+    Rf = blkT(Rf)
     L  = int(nR/blk - 1)
+    Rinv = inv(RL)
+    A = np.matmul(Rinv, Rf)
+    A_t = blkT(A)
+    x = x[:,0:ndim-1]
+    xvec = np.reshape(x[:,::-1].T, ((mdim*ndim)-2,1))
+    pred = np.around(np.matmul(A_t, xvec))
     
-    # Initialization
-    Ef_old = R[0:blk, 0:blk]
-    Eb_old = R[0:blk, 0:blk]
-    I = np.identity(blk)
-    Z = np.zeros((blk,blk))
-    Kb = R[blk:blk*2, 0:blk]
-    A_old = Z + np.matmul(np.matmul(I, inv(Eb_old)), Kb.T)
-    B_old = Z + np.matmul(np.matmul(I, inv(Ef_old)), Kb)
-    Ef_old = Ef_old - np.matmul(np.matmul(Kb, inv(Eb_old)), Kb.T)
-    Eb_old = Eb_old - np.matmul(np.matmul(Kb.T, inv(Ef_old)), Kb)
-    
-    for i in range(2, L+1):
-        
-        # Recursion
-        R_l = R[blk*i:blk*(i+1), 0:blk]
-        Rf_l = R[blk:blk*i, 0:blk]
-        Kb = R_l - np.matmul(Rf_l.T, B_old)
-            
-        A = np.block([[A_old], [Z]]) - np.matmul(np.block([[B_old], [-I]]), np.matmul(inv(Eb_old), Kb.T))
-        B = np.block([[Z], [B_old]]) - np.matmul(np.block([[-I], [A_old]]), np.matmul(inv(Ef_old), Kb))
-        Ef = Ef_old - np.matmul(Kb, np.matmul(inv(Eb_old), Kb.T))
-        Eb = Eb_old - np.matmul(Kb.T, np.matmul(inv(Ef_old), Kb))
-
-        # Update old matrices
-        A_old = A
-        B_old = B
-        Eb_old = Eb
-        Ef_old = Ef
-        
-    xvec = np.reshape(x[:,::-1].T, (mdim*(ndim),1))
-    pred = np.around(np.matmul(A.T, xvec[2:]))
-
-    return pred
-
-# TODO: Check the initialization updates that I made above!!!
-# I think I'm almost there
+    return pred.T
 
 
-def MV_accuracy(data, start, N, filtsz = None):
+def MV_accuracy(data, start, N, filtsz = None, show = True):
 
     ''' data: the full sequence
         start: where predictions start (cannot be first index. >100 recommeneded)
@@ -312,54 +262,42 @@ def MV_accuracy(data, start, N, filtsz = None):
     total = 0
     correct = 0
     calculated = 0
+    pred_arr = []
+    act_arr = []
     for i in range(start,start+N):
         if filtsz == None:
             sample = data[:, 0:i]
         else:
             sample = data[:, (i-filtsz):i]
+
+        # Predicted Value    
         pred = MV_LP(sample)
-        prediction = (pred[0], pred[1])
+        prediction = (pred[0][0], pred[0][1])
+        pred_arr.append(prediction)
+
+        # Actual Value
         actual = (data[0, i+1], data[1, i+1])
+        act_arr.append(actual)
+
+        # Percent Calculations
         if actual == prediction:
             correct += 1
         total += 1
         calculated += 1
-        print(str(actual)+str(prediction))
-        print(str(calculated) + " predictions calculated")
+        if show == True:
+            print(str(calculated) + " predictions calculated")
     percent = correct/total
-    return percent
-
-def blkconv(x):
-
-    '''
-
-    Creates convolution matrix of block elements from multivariate
-    data.
-
-    x: multi-dimensional data
-
-    '''
-
-    m, n = x.shape
-    mrows = 2*m-1
-
-    T = np.zeros((mrows, 1, m, n), dtype = x.dtype)
-    xtup = tuple(x)
-    for i, arr in enumerate(xtup):
-        for j in range(m):            
-            T[i + j, :, j, :] = arr
-            
-    T.shape = (mrows*1, m*n)
+    pred_arr = np.asarray(pred_arr)
+    act_arr = np.asarray(act_arr)
     
-    return T
+    return percent, (pred_arr, act_arr)
 
-def BlkCovMat(x):
+def CorrCovMats(x):
 
     '''
     
     Creates multivariate autocorrelation matrix, in which
-    each element--R(0), R(1),...,R(L)--is a covariance matrix.
-    Thus, the entire output is a block matrix.
+    each block element--R(0), R(1),...,R(L)--is a autocorrelation matrix.
 
     x: M x L matrix, where M represents the number of channels and 
        L represents the size of the lag.
@@ -371,22 +309,290 @@ def BlkCovMat(x):
 
     if x.ndim > 2:
         AssertionError("Dimension Error: must be 2d-array")
-
-    # Block mean Vector
     x = x.T
-    mu = np.zeros(x.shape)
-    nchans = len(x[0,:])
-    for i in range(nchans):
-        mu[:,i] = sum(x[:,i])/len(x[:,i])
-
-    # Block Covariance Matrix
-    diff = x - mu
-    con = blkconv(diff)
-    C = np.matmul(con.T, con)
-    
-    # Block Autocorrelation Matrix
-    sz = C.shape
-    mu = np.repeat(np.array([[mu[0,0],mu[0,1]]]), sz[1], axis=0)
-    R = C + np.matmul(mu,mu.T)
-
+    (mdims,ndims) = x.shape
+    x = np.reshape(x, ((mdims*ndims, 1)), 0)
+    xlen = x.shape[0]
+    m = np.sum(x)/xlen
+    mu = np.ones((xlen,1))*m
+    C = covar2(x, xlen)
+    R = C + (mu*mu.T)/(xlen-1)
+        
     return (C, R)
+
+def trajectory(data, start, N, L):
+
+    "Description: Plots the trajectories of two sequences on one graph"
+
+    (p, (data1, data2)) = MV_accuracy(data, start, N, L)
+    plt.plot(data1[:,0], data1[:,1])
+    plt.plot(data2[:,0], data2[:,1])
+    plt.show()
+
+def pred_correct(data, start, N, L):
+
+    ''' Graphs predictions against actual results'''
+    (p, (data1, data2)) = MV_accuracy(data, start, N, L)
+
+    frames = np.linspace(start, start + N, N)
+    fig1, (ax1, ax2) = plt.subplots(1,2)
+
+    # X coordinates plot
+    ax1.plot(frames, data1[:,0])
+    ax1.plot(frames, data2[:,0])
+    ax1.set_xlabel("Time (Frame #)")
+    ax1.set_title("Predicted vs Actual X Positions")
+
+    # Y coordinates plt
+    ax2.plot(frames, data1[:,1])
+    ax2.plot(frames, data2[:,1])
+    ax2.set_xlabel("Time (Frame #)")
+    ax2.set_title("Predicted vs Actual Y Positions")
+    
+    plt.show()
+
+def percent_graphs(data, start, N, l):
+
+    coor_arr = np.array([])
+    off1_arr = np.array([])
+    off2_arr = np.array([])
+    offbig_arr = np.array([])
+    
+    for L in l:
+        print("Performing Calculations for lag: " + str(int(L)))
+        (correct, off1, off2, offbig) =  MVpercents(data, start, N, int(L))
+        print(offbig)
+        coor_arr = np.append(coor_arr, [correct])
+        off1_arr = np.append(off1_arr, [off1])
+        off2_arr = np.append(off2_arr, [off2])
+        offbig_arr = np.append(offbig_arr, [offbig])
+        
+    # Graphs
+    plt.plot(l, coor_arr)
+    plt.plot(l, off1_arr)
+    plt.plot(l, off2_arr)
+    plt.plot(l, offbig_arr)
+    plt.show()    
+    
+def MVpercents(data, start, N, L):
+
+    ''' Bins the distances between a sample of actual and predicted values
+    (correct, off by 1, off by 2, off by >2)
+
+    data: multivariate data
+    start: the index at which we start predicting
+    N: number of predictions
+    L: array of lags
+    d: distance between actual and predicted point
+    '''
+
+    total = 0
+    correct = 0
+    off1 = 0
+    off2 = 0
+    offbig = 0
+    calculated = 0
+    pred_arr = []
+    act_arr = []
+    for i in range(start, start + N):
+        sample = data[:, (i-L):i]
+        
+        # Predicted Value    
+        pred = MV_LP(sample)
+        prediction = np.array([pred[0][0], pred[0][1]])
+        pred_arr.append(prediction)
+
+        # Actual Value
+        actual = np.array([data[0, i+1], data[1, i+1]])
+        act_arr.append(actual)
+
+        # Percent Calculations
+        if sum(np.sqrt(np.square(actual-prediction))) == 0:
+            correct += 1
+        elif sum(np.sqrt(np.square(actual-prediction))) == 1:
+            off1 += 1
+        elif sum(np.sqrt(np.square(actual-prediction))) == 2:
+            off2 += 1
+        else:
+            offbig += 1
+        total += 1
+        calculated += 1
+
+    corr_per = correct/total
+    off1_per = off1/total
+    off2_per = off2/total
+    offbig_per = offbig/total
+
+    return(corr_per, off1_per, off2_per, offbig_per)
+
+
+#-------------------------Scrap/Test Code----------------------------------
+
+''' Function 1 '''
+
+#def BlkCovMat(x):
+#
+#    '''
+#    
+#    Creates multivariate autocorrelation matrix, in which
+#    each block element--R(0), R(1),...,R(L)--is a autocorrelation matrix.
+#
+#    x: M x L matrix, where M represents the number of channels and 
+#       L represents the size of the lag.
+#
+#    '''
+#
+#    if type(x).__name__ != 'ndarray':
+#        AssertionError("Type Error: x must be an ndarray")
+#
+#    if x.ndim > 2:
+#        AssertionError("Dimension Error: must be 2d-array")
+#
+#    # Block mean Vector
+#    x = x.T
+#    mu = np.zeros(x.shape)
+#    nchans = len(x[0,:])
+#    for i in range(nchans):
+#        mu[:,i] = sum(x[:,i])/len(x[:,i])
+#
+#    # Block Covariance Matrix
+#    diff = x - mu
+#    con = blkconv(diff)
+#    C = np.matmul(con.T, con)/len(x[:,i])
+#    
+#    # Block Autocorrelation Matrix
+#    conmu = blkconv(mu)
+#    mu_sq = np.matmul(conmu.T, conmu)
+#    sz = C.shape
+#    mux = mu[0,0]
+#    muy = mu[0,1]
+#    mu_sq = np.array([[mux*mux, mux*muy], [muy*mux, muy*muy]])
+#    mat1 = np.ones((int(sz[0]/2),int(sz[1]/2)))
+#    mu_sq = np.kron(mat1,mu_sq)
+#    print(mu_sq)
+#    R = C + mu_sq
+#    mux = np.array([mu[:,0]]).T
+#    muy = np.array([mu[:,1]]).T
+#    mu_sq = np.matmul(mux, muy.T)
+#    R = C + mu_sq
+#
+#    return (C, R)
+
+''' Fucntion 2 '''
+
+#def blkconv(x):
+#
+#    '''
+#
+#    Creates convolution matrix of block elements from multivariate
+#    data.
+#
+#    x: multi-dimensional data
+#
+#    '''
+#
+#    m, n = x.shape
+#    mrows = 2*m-1
+#
+#    T = np.zeros((mrows, 1, m, n), dtype = x.dtype)
+#    xtup = tuple(x)
+#    for i, arr in enumerate(xtup):
+#        for j in range(m):            
+#            T[i + j, :, j, :] = arr
+#            
+#    T.shape = (mrows*1, m*n)
+#    
+#    return T
+
+''' Function 3 '''
+
+#def MV_LP_lev(x):
+#
+#    ''' 
+#        Description: Uses Wiener filter for multivariate linear prediction
+#        
+#        x: k-channel signal of t-time series data
+#
+#        i.e.
+#
+#        x = [x_10 x_11 ... x_1L]
+#            [x_20 x_21 ... x_2L]
+#            [ .    .   .    .  ]
+#            [ .    .    .   .  ]
+#            [ .    .     .  .  ]
+#            [x_k0 x_k1     x_kL]
+#
+#        RL = [R(0)      R(1)    ...  R(L-1)]
+#             [R(1).T    R(0)    ...  R(L-2)]
+#             [  .        .      .      .   ] 
+#             [  .        .       .     .   ]
+#             [  .        .        .    .   ]
+#             [R(L-1).T R(L-2).T ...  R(0)  ]
+#
+#        Rf = [R(1) R(2) ... R(L)].T
+#
+#        Note: Block element transpose only supported for channels of size 2. Need# to create a new function for larger channel arrays.
+#
+#    '''
+#    (mdim, ndim) = x.shape
+#    (C, R) = BlkCovMat(x)
+#    blk = mdim
+#    nR = len(R[0,:])
+#    Rf = R[0:blk, blk:nR]
+#    Rf = blkT(Rf)
+#    L  = int(nR/blk - 1)
+#    
+#    # Initialization
+#    Ef_old = R[0:blk, 0:blk]
+#    Eb_old = R[0:blk, 0:blk]
+#    I = np.identity(blk)
+#    Z = np.zeros((blk,blk))
+#    Kb = R[blk:blk*2, 0:blk]
+#    A_old = Z + np.matmul(np.matmul(I, inv(Eb_old)), Kb.T)
+#    B_old = Z + np.matmul(np.matmul(I, inv(Ef_old)), Kb)
+#    Ef_old = Ef_old - np.matmul(np.matmul(Kb, inv(Eb_old)), Kb.T)
+#    Eb_old = Eb_old - np.matmul(np.matmul(Kb.T, inv(Ef_old)), Kb)
+#    
+#    for i in range(2, L+1):
+#        
+#        # Recursion
+#        R_l = R[blk*i:blk*(i+1), 0:blk]
+#        #Rf_l = R[0:blk, blk:blk*i].T
+#        Rf_l = Rf[0:blk*(i-1), :]
+#        Kb = R_l - np.matmul(Rf_l.T, B_old)
+#            
+#        A = np.block([[A_old], [Z]]) - np.matmul(np.block([[B_old], [-I]]), np.ma#tmul(inv(Eb_old), Kb.T))
+#        B = np.block([[Z], [B_old]]) - np.matmul(np.block([[-I], [A_old]]), np.ma#tmul(inv(Ef_old), Kb))
+#        Ef = Ef_old - np.matmul(Kb, np.matmul(inv(Eb_old), Kb.T))
+#        Eb = Eb_old - np.matmul(Kb.T, np.matmul(inv(Ef_old), Kb))
+#
+#        # Update old matrices
+#        A_old = A
+#        B_old = B
+#        Eb_old = Eb
+#        Ef_old = Ef
+#
+#    x = x[:,0:ndim-1]
+#    xvec = np.reshape(x[:,::-1].T, ((mdim*ndim)-2,1))
+#    pred = np.around(np.matmul(A.T, xvec))
+#
+#    return pred.T
+#
+# TODO: Fix the R-block elements. They may al be transposed.
+
+''' Function 4 '''
+
+#def LPboxplot(data, K, alp, threshold):
+#    length = len(data[:,0])
+#    plt_dta = np.array([])
+#    for i in range(length-1):
+#        (maxlen, idxs) = contsegs(data[i, :])
+#        if maxlen >= threshold:
+#            plt_dta = np.append(plt_dta, LinPredictor("M_positions_new.npy", i, id#xs[0], maxlen, K, alp, 20))
+#
+#    # Create Boxplot
+#
+#    plt.boxplot(plt_dta,vert=False)
+#    plt.title("Percentage of Correctly Predicted X Coordinates for All Sequences"#)
+#    plt.xlabel("Percent Correctly Predicted")    
+#    plt.show()
