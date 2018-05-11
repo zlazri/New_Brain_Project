@@ -82,8 +82,8 @@ def LinPredictor(path, iseq, start, N, K, alp, skip, return_vals=False):
 def dist_categorization(data_path1, data_path2, alp, K):
     '''Compares the correct predictions and incorrect predictions by how far of the predicted value is from the actual'''
 
-    (p1, predict1, actual1) = LinPredictor(data_path1, 212, 5673, 200, K, alp, 100, True)
-    (p2, predict2, actual2) = LinPredictor(data_path2, 212, 5673, 200, K, alp, 100, True)
+    (p1, predict1, actual1) = LinPredictor(data_path1, 212, 5673, 1000, K, alp, 100, True)
+    (p2, predict2, actual2) = LinPredictor(data_path2, 212, 5673, 1000, K, alp, 100, True)
     distance = abs(actual1-predict1) + abs(actual2-predict2)
     
     dist0 = 0
@@ -206,12 +206,14 @@ def maxseq(data):
 
     return max_seq, contsegs(data[max_seq, :])
 
-def MV_LP(x):
+def MV_LP(x, K):
 
     ''' 
         Description: Uses Wiener filter for multivariate linear prediction
         
         x: k-channel signal of t-time series data
+
+        K: number of previous frames taken into account
 
         i.e.
 
@@ -235,24 +237,22 @@ def MV_LP(x):
 
     '''
     (mdim, ndim) = x.shape
-    (C, R) = CorrCovMats(x)
+    (C, R) = CorrCovMats(x, K)
     blk = mdim
     nR = len(R[0,:])
     Rf = R[0:blk, blk:nR]
-    RL = R[0:nR-blk,0:nR-blk]
-    Rf = blkT(Rf)
-    L  = int(nR/blk - 1)
+    RL = R[0:nR-blk, 0:nR-blk]
+    Rf = Rf.T
     Rinv = inv(RL)
     A = np.matmul(Rinv, Rf)
-    A_t = blkT(A)
-    x = x[:,0:ndim-1]
-    xvec = np.reshape(x[:,::-1].T, ((mdim*ndim)-2,1))
-    pred = np.around(np.matmul(A_t, xvec))
+    x = x[:,1:K]
+    xvec = np.reshape(x.T, ((mdim*K)-2, 1))
+    pred = np.around(np.matmul(A.T, xvec))
     
     return pred.T
 
 
-def MV_accuracy(data, start, N, filtsz = None, show = True):
+def MV_accuracy(data, start, N, K, sampsz = None, show = True):
 
     ''' data: the full sequence
         start: where predictions start (cannot be first index. >100 recommeneded)
@@ -265,13 +265,13 @@ def MV_accuracy(data, start, N, filtsz = None, show = True):
     pred_arr = []
     act_arr = []
     for i in range(start,start+N):
-        if filtsz == None:
+        if sampsz == None:
             sample = data[:, 0:i]
         else:
-            sample = data[:, (i-filtsz):i]
+            sample = data[:, (i-sampsz):i]
 
         # Predicted Value    
-        pred = MV_LP(sample)
+        pred = MV_LP(sample[:,::-1], K)
         prediction = (pred[0][0], pred[0][1])
         pred_arr.append(prediction)
 
@@ -290,9 +290,9 @@ def MV_accuracy(data, start, N, filtsz = None, show = True):
     pred_arr = np.asarray(pred_arr)
     act_arr = np.asarray(act_arr)
     
-    return percent, (pred_arr, act_arr)
+    return (pred_arr, act_arr), percent
 
-def CorrCovMats(x):
+def CorrCovMats(x, K):
 
     '''
     
@@ -312,27 +312,27 @@ def CorrCovMats(x):
     x = x.T
     (mdims,ndims) = x.shape
     x = np.reshape(x, ((mdims*ndims, 1)), 0)
-    xlen = x.shape[0]
+    xlen = x.size
     m = np.sum(x)/xlen
-    mu = np.ones((xlen,1))*m
-    C = covar2(x, xlen)
+    mu = np.ones((K*2,1))*m
+    C = covar2(x, K*2)
     R = C + (mu*mu.T)/(xlen-1)
-        
+    
     return (C, R)
 
-def trajectory(data, start, N, L):
+def trajectory(data, start, N, K, sampsz):
 
     "Description: Plots the trajectories of two sequences on one graph"
 
-    (p, (data1, data2)) = MV_accuracy(data, start, N, L)
+    (p, (data1, data2)) = MV_accuracy(data, start, N, K, sampsz)
     plt.plot(data1[:,0], data1[:,1])
     plt.plot(data2[:,0], data2[:,1])
     plt.show()
 
-def pred_correct(data, start, N, L):
+def pred_correct(data, start, N, K, sampsz):
 
     ''' Graphs predictions against actual results'''
-    (p, (data1, data2)) = MV_accuracy(data, start, N, L)
+    (p, (data1, data2)) = MV_accuracy(data, start, N, K, sampsz)
 
     frames = np.linspace(start, start + N, N)
     fig1, (ax1, ax2) = plt.subplots(1,2)
@@ -352,7 +352,8 @@ def pred_correct(data, start, N, L):
     plt.show()
 
 def percent_graphs(data, start, N, l):
-
+#TODO fix parameters
+    
     coor_arr = np.array([])
     off1_arr = np.array([])
     off2_arr = np.array([])
@@ -375,7 +376,8 @@ def percent_graphs(data, start, N, l):
     plt.show()    
     
 def MVpercents(data, start, N, L):
-
+#TODO fix parameters
+    
     ''' Bins the distances between a sample of actual and predicted values
     (correct, off by 1, off by 2, off by >2)
 
