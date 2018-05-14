@@ -1,0 +1,206 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\begin{document}
+\section{Introduction}
+The classical Wiener filter is used to produce a minium mean squared error estimate of a process. That is, suppose that one has a process, $y[n]$, that can be represented as follows:\\
+
+\begin{center}
+  $y[n] = x[n] + e[n]$,
+\end{center}
+where $x[n]$ represents the noiseless signal and $e[n]$ is the noise. The goal is to estimate  $\hat{x}[n]$ in order to minimize:\\
+
+\begin{center}
+  $E\big\{{\mid x[n] - \hat{x}[n] \mid}^{2} \big\}$.
+\end{center}
+
+Suppose that instead of filtering the noisy signal to estimate the true value of $x[n]$, one wishes to predict a future value of the signal. The filtering problem can be cast into a linear prediction problem by setting $x[n] = y[n+1]$. Finding the weights for this filter requires solving the Wiener-Hopf system of equations:\\
+
+\small
+\begin{equation}
+  \begin{bmatrix}
+    r_{x}(0) & r^{*}_{x}(1) & r^{*}_{x}(2) & \dots & r^{*}_{x}(p-1) \\
+    r_{x}(1) & r_{x}(0) & r^{*}_{x}(1) & \dots & r^{*}_{x}(p-2) \\
+    r_{x}(2) & r_{x}(1) &r_{x}(0) & \dots & r^{*}_{x}(p-3) \\
+    \vdots & \vdots & \vdots & \ddots & \vdots \\
+    r_{x}(p-1) & r_{x}(p-2) & r_{x}(p-3) & \dots & r_{x}(0) \\
+  \end{bmatrix}
+  \begin{bmatrix}
+    w(0) \\
+    w(1) \\
+    
+    w(2) \\
+    \vdots \\
+    w(p-1) \\
+  \end{bmatrix}
+  =
+  \begin{bmatrix}
+    r_{x}(1) \\
+    r_{x}(2) \\
+    r_{x}(3) \\
+    \vdots \\
+    r_{x}(p) \\
+  \end{bmatrix}.
+\end{equation}
+\normalsize
+
+Derivation of the Wiener filter for filtering and linear prediction of univariate data can be found in Hayes, 1996 (section 7.2).\\
+
+Now, suppose one has multivariate/multivariate data---data consisting of multiple signals---and wants to predict the future values for each of these signals. This can be done using the Levinson-Wiggins-Robinson algorithm. For derivation of this algorithm, see Benesty et al., 2008. I will simply pose the problem and summarize the algorithm.
+
+\section{Solving Forward Linear Prediction Problem using Multivariate Wiener Filter}
+Suppose that one has an $M$-channel time series\\
+\[
+  \chi(t) = \begin{bmatrix}
+    x_{1}(t) \\
+    x_{2}(t) \\
+    \vdots \\
+    x_{M}(t)\\
+  \end{bmatrix}
+\]
+where t represents the time index. The goal is to minimize the foward prediction error, given by:\\
+\begin{equation}
+  \textbf{E}_{f,L} = \chi(k) - \hat{\chi}(k)
+\end{equation}
+Since $\hat{\chi}$ is a linear combination of previous time series values and filter coefficients, it can be represented as\\
+\begin{center}
+  $\hat{\chi} = \sum^{L}_{l=1}\textbf{A}_{L,l}\chi(k-l) = \textbf{A}^{T}\textbf{x}(k-1)$,
+\end{center}
+where $l$ represents the time lag index and $L$ is the number of previous values taken into account;\\
+\[
+  \textbf{A}_{L} = \begin{bmatrix}
+    \textbf{A}_{L,1} \\
+    \textbf{A}_{L,2} \\
+    \vdots \\
+    \textbf{A}_{L,L}\\
+  \end{bmatrix}
+\]
+is an $ML \times M$ forward prediction matrix, with each sub-block $\textbf{A}_{L,l}$ being an $M \times M$ matrix of prediction coefficients; and\\
+\[
+  \textbf{x}(k-1) = \begin{bmatrix}
+    \chi(k-1)\\
+    \chi(k-2)\\
+    \vdots\\
+    \chi(k-L)\\
+  \end{bmatrix}
+\]
+is an $ML$ length vector. Thus, we can write\\
+\begin{equation}
+  \textbf{E}_{f,L}(k) = \chi(k) - \textbf{A}^{T}_{L}\textbf{x}(k-1)
+\end{equation}
+To find the optimal forward Wiener filter coefficient matrix, $\textbf{A}^{*}_{L}$, it is necessary to minimize the mean squared error (MSE),\\
+\begin{equation}
+  J_{f}(\textbf{A}_{L}) = E\big\{\textbf{e}^{T}_{f,L}(k)\textbf{e}_{f,L}(k)\big\}.
+\end{equation}
+This can be done by solving the multivariate Wiener-Hopf equations,\\
+\begin{equation}
+  \textbf{R}_{L}\textbf{A}^{*}_{L}=\textbf{R}_{f}(1/L);
+\end{equation}
+where\\
+\begin{center}
+  $\textbf{R}_{L} = E\big\{\textbf{x}(k-1)\textbf{x}^{T}(k-1)\big\}$
+\end{center}
+\begin{center}
+  $= E\big\{\textbf{x}(k)\textbf{x}^{T}(k)\big\}$
+\end{center}
+\begin{equation}
+  =\begin{bmatrix}
+    \textbf{R}(0) & \textbf{R}(1) & \textbf{R}(2) & \dots & \textbf{R}(L-1)\\
+    \textbf{R}^{T}(1) & \textbf{R}(0) & \textbf{R}(1) & \dots & \textbf{R}(L-2)\\
+    \textbf{R}^{T}(2) & \textbf{R}^{T}(1) & \textbf{R}(0) & \dots & \textbf{R}(L-3)\\
+    \vdots & \vdots & \vdots & \ddots & \vdots \\
+    \textbf{R}^{T}(L-1) & \textbf{R}^{T}(L-2) & \textbf{R}^{T}(L-3) & \dots & \textbf{R}(0)\\
+  \end{bmatrix}
+\end{equation}
+is composed of $M \times M$ autocorrelation matrix block elements of the form\\
+\begin{center}
+  $\textbf{R}(l) = E\big\{\chi(k)\chi^{T}(k-l)\big\}$ \quad and
+\end{center}
+\begin{center}
+  $\textbf{R}(-l) = E\big\{\chi(k-l)\chi^{T}(k)\big\} = \textbf{R}^{T}(l)$, \quad for $l = 0, 1, \dots, L-1$,
+\end{center}
+and\\
+\begin{center}
+  $\textbf{R}_{f}(1/L) = E\big\{\textbf{x}(k-1)\chi^{T}(k)\big\}$
+\end{center}
+\[
+   = \begin{bmatrix}
+    \textbf{R}(1)\\
+    \textbf{R}(2)\\
+    \vdots\\
+    \textbf{R}(L)\\
+  \end{bmatrix}.
+\]
+
+\section{Levinson-Wiggins-Robinson Algorithm Summary}
+To summarize the algorithm, I will need to introduce a few more matrices involved in the recursion.  For a detailed understanding of their derivation, see Benesty et al., 2008.\\
+
+So far, I have introduced $\textbf{R}(l)$, $\textbf{R}_{f}(l)$, $\textbf{E}_{f,l}$, and $\textbf{A}^{*}_{l}$ in relation to the forward prediction.  However, this algorithm also heavily relies on backward predictors. Below, I have listed all the matrices related the backward prediction relevant in the implementation of this algorithm:\\
+\begin{enumerate}
+  \item
+  \[
+    \textbf{B}_{L} = \begin{bmatrix}
+      \textbf{B}_{L,1} \\
+      \textbf{B}_{L,2} \\
+      \vdots \\
+      \textbf{B}_{L,L} \\
+    \end{bmatrix}
+  \]
+  is an $ML x M$ backward prediction matrix, with each sub-block $\textbf{B}_{L,l}$ being an $M \times M$ matrix of prediction filter coefficients.
+  \item  
+    $\textbf{E}_{b,L} = E\big\{\textbf{e}^{*}_{b,L}(k)\textbf{e}^{*T}_{b,L}(k)\big\} = \textbf{R}(0) - \textbf{R}^{T}_{b}(1/L)\textbf{B}^{*}_{L}$ \quad is the backward error matrix of size $M \times M$. (Note: $\textbf{R}_{b}(1/L)$ is the same as $\textbf{R}_{f}(1/L)$, but with it's elements transposed).
+  \item
+    $\textbf{K}_{b,L} = \textbf{R}(L) - \textbf{R}^{T}_{f}(1/L-1)\textbf{B}^{*}_{L-1}$ (Note: $\textbf{K}_{b,L}=\textbf{K}^{T}_{f,L}$).  
+\end{enumerate}
+
+With this information in mind, the recursion can be implemented as follows:
+\subsection{Initialization}
+\begin{center}
+  $\textbf{E}_{f,0} = \textbf{E}_{b,0} = \textbf{R}(0)$
+\end{center}
+\subsection{First loop of Recursion: $l=1$}
+\begin{center}
+  $\textbf{K}_{b,l} = R(l)$\\
+  $\textbf{A}^{*}_{l} = \textbf{0}_{M \times M}+\textbf{I}_{M \times M}\textbf{E}^{-1}_{b,l-1}\textbf{K}^{T}_{b,l}$\\
+  $\textbf{B}^{*}_{l} = \textbf{0}_{M \times M}+\textbf{I}_{M \times M}\textbf{E}^{-1}_{f,l-1}\textbf{K}_{b,l}$\\
+  $\textbf{E}_{f,l} = \textbf{E}_{f,l}-\textbf{K}_{b,l}\textbf{E}^{-1}_{b,l-1}\textbf{K}^{T}_{b,l}$\\
+  $\textbf{E}_{b,l} = \textbf{E}_{b,l}-\textbf{K}^{T}_{b,l}\textbf{E}^{-1}_{f,l-1}\textbf{K}_{b,l}$\\
+\end{center}
+\subsection{Remainder of Recursion: $l = 2, 3, ..., L$}
+\begin{center}
+  $\textbf{K}_{b,l} = R(l)-\textbf{R}^{T}_{f}(1:l-1)\textbf{B}^{*}_{l-1}$\\
+  $\textbf{A}^{*}_{l} = \begin{bmatrix} \textbf{A}^{*}_{l-1}\\ \textbf{0}_{M \times M}\\ \end{bmatrix} - \begin{bmatrix} \textbf{B}^{*}_{l-1}\\ -\textbf{I}_{M \times M}\\ \end{bmatrix} \textbf{E}^{-1}_{b,l-1}\textbf{K}^{T}_{b,l}$\\
+  $\textbf{B}^{*}_{l} = \begin{bmatrix} \textbf{0}_{M \times M}\\ \textbf{B}^{*}_{l-1}\\ \end{bmatrix} - \begin{bmatrix} -\textbf{I}_{M \times M}\\ \textbf{A}^{*}_{l-1}\\ \end{bmatrix}\textbf{E}^{-1}_{f,l-1}\textbf{K}_{b,l}$\\
+  $\textbf{E}_{f,l} = \textbf{E}_{f,l}-\textbf{K}_{b,l}\textbf{E}^{-1}_{b,l-1}\textbf{K}^{T}_{b,l}$\\
+  $\textbf{E}_{b,l} = \textbf{E}_{b,l}-\textbf{K}^{T}_{b,l}\textbf{E}^{-1}_{f,l-1}\textbf{K}_{b,l}$\\
+\end{center}
+
+\section{Levinson-Wiggins-Robinson Algorithm Applied to Neuron Brain Data}
+The Levinson-Wiggins-Robinson algorithm was applied to a dataset of neuron positions.  The data consists of different neurons' $(x,y)$-positions tracked across time. The bivariate form of the algorithm can be applied to any neuron's time series. I took one series and tested the prediction accuracy of this algorithm on it by comparing the predicted and actual neuron location at various points in time, varying the number of previous frames taken into account to make the prediction.  Figures 1 and 2, below, illustrate these results.
+\begin{figure}[H]
+  \includegraphics[width=\textwidth]{multivar_xy}
+  \caption{Comparison between actual and predicted nueron positions, varying the number of frames taken into account}
+  \label{fig:MV_comp}
+\end{figure}
+Figure 1 illustrates the actual and predicted $x$ and $y$ coordinates of the neurons on different frames. As I move from one frame to the next in these calculations, I continue to update the sample; so as we move through future frames, I increase the number of previous frames used to predict future neuron locations. The shapes of the graphs cooresponding with the actual positions clearly match those of the predicted neuron positions. However, there is displacement between the actual and predicted neuron location graphs. The x-coordinate predictions are too low, while the y-coordinate predictions are too high. This leads me to believe that there may be a bug in the code. I will review the code for this bug and make the necessary adjustments.
+
+\begin{figure}[H]
+  \begin{center}
+    \includegraphics[scale=.5]{multivar_l1norm}
+  \end{center}
+  \caption{The L1-norm taken the actual and predicted neuron positions, varying the number of frames taken into account}
+  \label{fig:MV_dist}
+\end{figure}
+When looking at Figure 2, one can see that the error is lowest when taking around 75 frames into account in making the prediction. However, I am skeptical that this is actually the case.  That is, I would expect the results to become more accurate as the number of frame taken into account increases. This is likely related to the same bug that plagues Figure 1.
+
+\section{References}
+\begin{enumerate}
+\item[{[1]}] M.H. Hayes, Statistical Digital Signal Processing and Modeling, Wiley, 1996.\\
+\item[{[2]}] J. Benesty, M.M. Sondhi, Y.A. Huang, Springer Handbook of Speech Processing, Springer-Verlag New York, Inc., Secaucus, NJ, USA, 2007.
+\end{enumerate}
+
+
+
+\end{document}
