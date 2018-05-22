@@ -206,52 +206,6 @@ def maxseq(data):
 
     return max_seq, contsegs(data[max_seq, :])
 
-def MV_LP(x, K):
-
-    ''' 
-        Description: Uses Wiener filter for multivariate linear prediction
-        
-        x: k-channel signal of t-time series data
-
-        K: number of previous frames taken into account
-
-        i.e.
-
-        x = [x_10 x_11 ... x_1L]
-            [x_20 x_21 ... x_2L]
-            [ .    .   .    .  ]
-            [ .    .    .   .  ]
-            [ .    .     .  .  ]
-            [x_k0 x_k1     x_kL]
-
-        RL = [R(0)      R(1)    ...  R(L-1)]
-             [R(1).T    R(0)    ...  R(L-2)]
-             [  .        .      .      .   ] 
-             [  .        .       .     .   ]
-             [  .        .        .    .   ]
-             [R(L-1).T R(L-2).T ...  R(0)  ]
-
-        Rf = [R(1) R(2) ... R(L)].T
-
-        Note: Block element transpose only supported for channels of size 2. Need to create a new function for larger channel arrays.
-
-    '''
-    (mdim, ndim) = x.shape
-    (C, R) = CorrCovMats(x, K)
-    blk = mdim
-    nR = len(R[0,:])
-    Rf = R[0:blk, blk:nR]
-    RL = R[0:nR-blk, 0:nR-blk]
-    Rf = Rf.T
-    Rinv = inv(RL)
-    A = np.matmul(Rinv, Rf)
-    x = x[:,1:K]
-    xvec = np.reshape(x.T, ((mdim*K)-2, 1))
-    pred = np.around(np.matmul(A.T, xvec))
-    
-    return pred.T
-
-
 def MV_accuracy(data, start, N, K, sampsz = None, show = True):
 
     ''' data: the full sequence
@@ -286,11 +240,72 @@ def MV_accuracy(data, start, N, K, sampsz = None, show = True):
         calculated += 1
         if show == True:
             print(str(calculated) + " predictions calculated")
+            
     percent = correct/total
     pred_arr = np.asarray(pred_arr)
     act_arr = np.asarray(act_arr)
     
-    return (pred_arr, act_arr), percent
+    return (act_arr, pred_arr), percent
+
+def MV_LP(x, K):
+
+    ''' 
+        Description: Uses Wiener filter for multivariate linear prediction
+        
+        x: k-channel signal of t-time series data
+
+        K: number of previous frames taken into account
+
+        i.e.
+
+        x = [x_10 x_11 ... x_1L]
+            [x_20 x_21 ... x_2L]
+            [ .    .   .    .  ]
+            [ .    .    .   .  ]
+            [ .    .     .  .  ]
+            [x_k0 x_k1     x_kL]
+
+        RL = [R(0)      R(1)    ...  R(L-1)]
+             [R(1).T    R(0)    ...  R(L-2)]
+             [  .        .      .      .   ] 
+             [  .        .       .     .   ]
+             [  .        .        .    .   ]
+             [R(L-1).T R(L-2).T ...  R(0)  ]
+
+        Rf = [R(1) R(2) ... R(L)].T
+
+        Note: Block element transpose only supported for channels of size 2. Need to create a new function for larger channel arrays.
+
+    '''
+    (mdim, ndim) = x.shape
+#    (C, R) = CorrCovMats(x, K)
+    C  = CorrCovMats(x,K)
+    blk = mdim
+
+    nR = len(C[0,:])
+    Rf = C[0:blk, blk:nR]
+    RL = C[0:nR-blk, 0:nR-blk]
+    Rf = Rf.T
+    Rinv = inv(RL)
+    A = np.matmul(Rinv, Rf)
+    x = x[:,0:K-1]
+    xvec = np.reshape(x.T, ((mdim*K)-2, 1))
+    #pred = np.around(np.matmul(A.T, xvec))
+    pred = np.matmul(A.T, xvec) # <------ no rounding
+    pred = pred.T
+    
+#    nR = len(R[0,:])
+#    Rf = R[0:blk, blk:nR]
+#    RL = R[0:nR-blk, 0:nR-blk]
+#    Rf = Rf.T
+#    Rinv = inv(RL)
+#    A = np.matmul(Rinv, Rf)
+#    x = x[:,0:K-1]
+#    xvec = np.reshape(x.T, ((mdim*K)-2, 1))
+#    #pred = np.around(np.matmul(A.T, xvec))
+#    pred = np.matmul(A.T, xvec) # <------ no rounding
+    
+    return np.around(pred)
 
 def CorrCovMats(x, K):
 
@@ -309,59 +324,123 @@ def CorrCovMats(x, K):
 
     if x.ndim > 2:
         AssertionError("Dimension Error: must be 2d-array")
-    x = x.T
-    (mdims,ndims) = x.shape
-    x = np.reshape(x, ((mdims*ndims, 1)), 0)
-    xlen = x.size
-    m = np.sum(x)/xlen
-    mu = np.ones((K*2,1))*m
-    C = covar2(x, K*2)
-    R = C + (mu*mu.T)/(xlen-1)
+
+    xmu = sum(x[0,:])/len(x[0,:])
+    ymu = sum(x[1,:])/len(x[1,:])
+    mu = np.array([[xmu], [ymu]])
+    mu = np.repeat(mu, x.shape[1], axis=1)
+    mu0 = x - mu
+    mu0 = mu0.T
+    (mdims, ndims) = mu0.shape
+    mu0 = np.reshape(mu0, ((mdims*ndims, 1)), 0)
+    length = mu0.size
+    C = covar2(mu0, K*2)/(length-1)
+    #x = x.T
+    #(mdims,ndims) = x.shape
+    #x = np.reshape(x, ((mdims*ndims, 1)), 0)
+    #xlen = x.size
+    #m = np.sum(x)/xlen
+    #mu = np.ones((K*2,1))*m
+    #C = covar2(x-m, K*2)/(xlen-1)
+    #R = C + (mu*mu.T)/(xlen-1)
     
-    return (C, R)
+    #return (C, R)
+
+    return C
 
 def trajectory(data, start, N, K, sampsz):
 
     "Description: Plots the trajectories of two sequences on one graph"
+    
 
-    (p, (data1, data2)) = MV_accuracy(data, start, N, K, sampsz)
-    plt.plot(data1[:,0], data1[:,1])
-    plt.plot(data2[:,0], data2[:,1])
+    ((data1, data2), p) = MV_accuracy(data, start, N, K, sampsz)
+    fig, (ax1, ax2, ax3) = plt.subplots(ncols=3)
+    ax1.plot(data1[:,0], data1[:,1], c = 'b')
+    ax2.plot(data2[:,0], data2[:,1], c = 'r')
+    ax3.plot(data1[:,0], data1[:,1], c = 'b')
+    ax3.plot(data2[:,0], data2[:,1], c = 'r')
+
+    ax1.title.set_text("Actual Trajectory")
+    ax2.title.set_text("Predicted Trajectory")
+    ax3.title.set_text("Overlapping Trajectories")
+
+    ax1.set_ylabel("Y position")
+    ax2.set_xlabel("X position")
+
+    fig.tight_layout()
+    
     plt.show()
 
-def pred_correct(data, start, N, K, sampsz):
+def pred_correct(data, start, N, k, sampsz):
 
     ''' Graphs predictions against actual results'''
-    (p, (data1, data2)) = MV_accuracy(data, start, N, K, sampsz)
+    ((data1, data2), p1) = MV_accuracy(data, start, N, k[0], sampsz)
+    ((data3, data4), p2) = MV_accuracy(data, start, N, k[1], sampsz)
+    ((data5, data6), p3) = MV_accuracy(data, start, N, k[2], sampsz)
+    plt.legend(loc=1, fontsize="small")
 
+    
     frames = np.linspace(start, start + N, N)
-    fig1, (ax1, ax2) = plt.subplots(1,2)
+    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3,2)
 
     # X coordinates plot
-    ax1.plot(frames, data1[:,0])
-    ax1.plot(frames, data2[:,0])
+    ax1.plot(frames, data1[:,0], label="Actual")
+    ax1.plot(frames, data2[:,0], label="Predicted")
     ax1.set_xlabel("Time (Frame #)")
-    ax1.set_title("Predicted vs Actual X Positions")
+    ax1.set_title("Predicted vs Actual X Positions, L = " + str(k[0]))
+    ax1.legend(loc=1, fontsize="small")
 
     # Y coordinates plt
     ax2.plot(frames, data1[:,1])
     ax2.plot(frames, data2[:,1])
     ax2.set_xlabel("Time (Frame #)")
-    ax2.set_title("Predicted vs Actual Y Positions")
-    
+    ax2.set_title("Predicted vs Actual Y Positions, L = " + str(k[0]))
+
+    # X coordinates plot
+    ax3.plot(frames, data3[:,0])
+    ax3.plot(frames, data4[:,0])
+    ax3.set_xlabel("Time (Frame #)")
+    ax3.set_title("Predicted vs Actual X Positions, L = " + str(k[1]))
+
+    # Y coordinates plt
+    ax4.plot(frames, data3[:,1])
+    ax4.plot(frames, data4[:,1])
+    ax4.set_xlabel("Time (Frame #)")
+    ax4.set_title("Predicted vs Actual Y Positions, L = " + str(k[1]))
+
+    # X coordinates plot
+    ax5.plot(frames, data5[:,0])
+    ax5.plot(frames, data6[:,0])
+    ax5.set_xlabel("Time (Frame #)")
+    ax5.set_title("Predicted vs Actual X Positions, L = " + str(k[2]))
+
+    # Y coordinates plt
+    ax6.plot(frames, data5[:,1])
+    ax6.plot(frames, data6[:,1])
+    ax6.set_xlabel("Time (Frame #)")
+    ax6.set_title("Predicted vs Actual Y Positions, L = " + str(k[2]))
+
+    fig.tight_layout()
+
     plt.show()
 
-def percent_graphs(data, start, N, l):
-#TODO fix parameters
+def percent_graphs(data, start, N, k, sample):
+
+    # k is array of lags. k-elements > 1
+
+    assert(min(k)>1), "ValueError: k must be greater than 1"
     
     coor_arr = np.array([])
     off1_arr = np.array([])
     off2_arr = np.array([])
     offbig_arr = np.array([])
     
-    for L in l:
-        print("Performing Calculations for lag: " + str(int(L)))
-        (correct, off1, off2, offbig) =  MVpercents(data, start, N, int(L))
+    for K in k:
+        print("Performing Calculations for lag: " + str(int(K)))
+        (correct, off1, off2, offbig) =  MVpercents(data, start, N, int(K), sample)
+        print(correct)
+        print(off1)
+        print(off2)
         print(offbig)
         coor_arr = np.append(coor_arr, [correct])
         off1_arr = np.append(off1_arr, [off1])
@@ -369,14 +448,20 @@ def percent_graphs(data, start, N, l):
         offbig_arr = np.append(offbig_arr, [offbig])
         
     # Graphs
-    plt.plot(l, coor_arr)
-    plt.plot(l, off1_arr)
-    plt.plot(l, off2_arr)
-    plt.plot(l, offbig_arr)
+   # xticks = np.linspace(2, k, k-2+1)
+    plt.plot(k, coor_arr, label="Correct")
+    plt.plot(k, off1_arr, label = "Off 1")
+    plt.plot(k, off2_arr, label = "Off 2")
+    plt.plot(k, offbig_arr, label = "Off >2")
+    plt.xticks(k)
+    plt.legend(loc=1, fontsize="small")
+    plt.xlabel("Number of Frame Lags Taken into Account")
+    plt.ylabel("Prediction Accuracy (%)")
+    plt.title("Accuracy of Multivariate Prediction at Different Time Lags")
+    
     plt.show()    
     
-def MVpercents(data, start, N, L):
-#TODO fix parameters
+def MVpercents(data, start, N, K, sampsz):
     
     ''' Bins the distances between a sample of actual and predicted values
     (correct, off by 1, off by 2, off by >2)
@@ -384,7 +469,7 @@ def MVpercents(data, start, N, L):
     data: multivariate data
     start: the index at which we start predicting
     N: number of predictions
-    L: array of lags
+    K: array of lags
     d: distance between actual and predicted point
     '''
 
@@ -397,10 +482,10 @@ def MVpercents(data, start, N, L):
     pred_arr = []
     act_arr = []
     for i in range(start, start + N):
-        sample = data[:, (i-L):i]
+        sample = data[:, (i-sampsz):i]
         
         # Predicted Value    
-        pred = MV_LP(sample)
+        pred = MV_LP(sample[:, ::-1], K)
         prediction = np.array([pred[0][0], pred[0][1]])
         pred_arr.append(prediction)
 
